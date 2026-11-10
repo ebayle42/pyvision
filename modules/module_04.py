@@ -121,7 +121,7 @@ class M04Exercise(Exercise):
         if res.timeout or res.killed or res.exception:
             ctx.ko("Plantage : %s" % label, CRASH, got=(
                 res.stdout[-600:] + "\n" + res.crash_text()).strip(),
-                file=ctx.rel(self.file))
+                file=ctx.rel(self.file), kind="crash")
             return True
         return False
 

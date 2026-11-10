@@ -8,6 +8,8 @@ tests/module_XX/<cas>/       : fichiers qui remplacent ceux de good/,
      "titles": {"ex1": ["prompt"]},    morceaux de titres de problème
                                        qui doivent apparaître
      "delete": ["ex1/file.py"],        fichiers de good/ à supprimer
+     "ko_count": {"ex1": 1},           nombre exact de KO affichés
+                                       (vérifie le regroupement)
      "module": "00"}                   (facultatif) module forcé
 Usage : python3 tests/run_tests.py [module_00 ...] [-k cas]
 """
@@ -89,6 +91,7 @@ def main() -> int:
             expect = dict(base_spec.get("expect", {}))
             expect.update(spec.get("expect", {}))
             titles = spec.get("titles", {})
+            ko_count = spec.get("ko_count", {})
             errors = []
             for r in out["results"]:
                 want = expect.get(r["ex"], "OK")
@@ -96,12 +99,20 @@ def main() -> int:
                     errors.append("%s: attendu %s, obtenu %s %s" % (
                         r["ex"], want, r["status"],
                         [i["title"] for i in r["issues"]]))
+                # Titres cherchés aussi dans les problèmes regroupés.
+                all_titles = [i["title"] for i in r["issues"]] + [
+                    j["title"] for i in r["issues"]
+                    for j in i.get("related", [])]
                 for t in titles.get(r["ex"], []):
-                    if not any(t.lower() in i["title"].lower()
-                               for i in r["issues"]):
+                    if not any(t.lower() in a.lower() for a in all_titles):
                         errors.append("%s: problème « %s » non détecté %s"
                                       % (r["ex"], t, [i["title"] for i in
                                                       r["issues"]]))
+                n_ko = sum(1 for i in r["issues"] if i["level"] == "KO")
+                if r["ex"] in ko_count and n_ko != ko_count[r["ex"]]:
+                    errors.append("%s: %d KO affiché(s), attendu %d %s" % (
+                        r["ex"], n_ko, ko_count[r["ex"]],
+                        [i["title"] for i in r["issues"]]))
             name = "%s/%s" % (mod, case.name)
             if errors:
                 failures += 1

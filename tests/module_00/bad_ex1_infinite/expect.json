@@ -1,1 +1,1 @@
-{"expect": {"ex1": "KO"}, "titles": {"ex1": ["délai"]}}
+{"expect": {"ex1": "KO"}, "titles": {"ex1": ["délai"]}, "ko_count": {"ex1": 1}}

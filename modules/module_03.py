@@ -143,7 +143,7 @@ class Ex1(M03Exercise):
         if res.crashed or res.returncode:
             ctx.ko("Plantage avec des arguments valides et invalides "
                    "mélangés", CRASH, got=res.stdout + res.crash_text(),
-                   file=ctx.rel(self.file))
+                   file=ctx.rel(self.file), kind="crash")
             return
         out = res.stdout
         rule = ("If both valid and invalid inputs are provided via the "
@@ -413,7 +413,8 @@ class Ex4(M03Exercise):
         res = ctx.run(self.file, argv=argv)
         if res.crashed or res.returncode:
             ctx.ko("Plantage avec d'autres paramètres", CRASH,
-                   got=res.stdout + res.crash_text(), file=ctx.rel(self.file))
+                   got=res.stdout + res.crash_text(), file=ctx.rel(self.file),
+                   kind="crash")
             return
         out = res.stdout
         inv = {"gem": 4, "rope": 2, "torch": 4, "arrow": 10}
@@ -459,7 +460,8 @@ class Ex4(M03Exercise):
         if res.crashed or res.returncode:
             ctx.ko("Plantage sans argument", "At the beginning of the game, "
                    "your inventory is usually empty ;)",
-                   got=res.stdout + res.crash_text(), file=ctx.rel(self.file))
+                   got=res.stdout + res.crash_text(), file=ctx.rel(self.file),
+                   kind="crash")
 
 
 STREAM_RULE = ("Create an endless generator function gen_event() that picks "

@@ -156,7 +156,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps({"module": module.id, "results": [
             {"ex": r.ex_id, "status": r.status,
-             "issues": [{"level": i.level, "title": i.title}
+             "issues": [{"level": i.level, "title": i.title,
+                         "file": i.file,
+                         "related": [{"level": j.level, "title": j.title}
+                                     for j in i.related]}
                         for i in r.issues]} for r in results]}))
     else:
         R.print_final(results, args.verbose)

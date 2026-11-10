@@ -55,7 +55,8 @@ class M00Exercise(Exercise):
             expected = list(sc["expected"])
             if r["timeout"]:
                 ctx.ko(label + " : délai dépassé (boucle infinie ?)", rule,
-                       got=r["out"][-1000:], file=ctx.rel(file))
+                       got=r["out"][-1000:], file=ctx.rel(file),
+                       kind="crash")
                 continue
             got = r["out"].splitlines()
             if "prompts" in sc:
@@ -76,18 +77,20 @@ class M00Exercise(Exercise):
                        file=ctx.rel(file))
             if r["exc"] and not r["exhausted"]:
                 ctx.ko(label + " : la fonction plante", rule,
-                       got=r["exc"], file=ctx.rel(file))
+                       got=r["exc"], file=ctx.rel(file), kind="crash")
                 continue
             if r["exhausted"]:
                 ctx.ko(label + " : input() appelé trop de fois", rule,
                        expected="%d saisie(s)" % len(sc.get("inputs", [])),
-                       got=repr(r["prompts"]), file=ctx.rel(file))
+                       got=repr(r["prompts"]), file=ctx.rel(file),
+                       kind="crash")
                 continue
             ctx.compare(label, expected, got, rule,
                         file=ctx.rel(file), detail=sc.get("detail"))
             if r["value"] is not None and sc.get("returns_none", True):
                 ctx.warn(label + " : la fonction renvoie une valeur",
                          "The function should handle output directly.",
+                         kind="output",
                          got=repr(r["value"]), file=ctx.rel(file))
 
     def check(self, ctx: Ctx) -> None:
@@ -246,8 +249,12 @@ class Ex6(M00Exercise):
     authorized = {"input", "int", "print", "range"}
     authorized_line = ("Authorized: input(), int(), print(), range(), "
                        "defining helper functions for recursion")
-    RULE = (">>> ft_count_harvest_iterative()\nDays until harvest: 5\n"
-            "Day 1\nDay 2\nDay 3\nDay 4\nDay 5\nHarvest time!")
+
+    @staticmethod
+    def rule(func: str) -> str:
+        """Exemple du sujet correspondant à la fonction testée."""
+        return (">>> %s()\nDays until harvest: 5\n"
+                "Day 1\nDay 2\nDay 3\nDay 4\nDay 5\nHarvest time!" % func)
 
     @staticmethod
     def expected(n: int) -> str:
@@ -309,7 +316,7 @@ class Ex6(M00Exercise):
                       "sortie identique à l'exemple est écrite en dur."),
                   _io("%s() autre valeur (12)" % func, ["12"], p,
                       self.expected(12))]
-            self.scenario_checks(ctx, file, func, sc, self.RULE)
+            self.scenario_checks(ctx, file, func, sc, self.rule(func))
 
 
 class Ex7(M00Exercise):

@@ -118,11 +118,12 @@ class M01Exercise(Exercise):
         if p.get("main_timeout"):
             ctx.ko("Le programme ne se termine pas (délai dépassé)",
                    RUN_RULE, got=str(p.get("main_out", ""))[-1500:],
-                   file=ctx.rel(self.file))
+                   file=ctx.rel(self.file), kind="crash")
         elif p.get("main_exc"):
             ctx.ko("Le programme plante", RUN_RULE,
                    got=str(p.get("main_out", ""))[-1500:] + "\n"
-                   + str(p["main_exc"]), file=ctx.rel(self.file))
+                   + str(p["main_exc"]), file=ctx.rel(self.file),
+                   kind="crash")
         elif "main_out" in p and self.expected_output:
             got = str(p["main_out"]).splitlines()
             ctx.compare("python3 " + self.file, lines(self.expected_output),

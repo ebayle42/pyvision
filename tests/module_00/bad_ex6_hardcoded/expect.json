@@ -1,1 +1,1 @@
-{"expect": {"ex6": "KO"}, "titles": {"ex6": ["input() n", "sortie différente"]}}
+{"expect": {"ex6": "KO"}, "titles": {"ex6": ["input() n", "sortie différente", "sans boucle"]}, "ko_count": {"ex6": 1}}

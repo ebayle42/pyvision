@@ -215,7 +215,7 @@ class Ctx:
                     detail=(res.killed or "Délai de %ss dépassé pendant "
                             "les appels directs aux fonctions/classes "
                             "(boucle infinie ?)." % timeout),
-                    got=res.stdout[-800:] or None)
+                    got=res.stdout[-800:] or None, kind="crash")
         elif res.meta.get("probe_error"):
             self.warn("Test de comportement interrompu",
                       detail="Erreur interne du test (souvent une "
@@ -255,12 +255,13 @@ class Ctx:
         if "import_error" in p:
             self.ko("Impossible d'importer " + self.rel(name),
                     got=p["import_error"], file=self.rel(name),
-                    rule="Your programs must always run without errors")
+                    rule="Your programs must always run without errors",
+                    kind="root")
             return None
         if not p.get("exists"):
             self.ko("Fonction %s() introuvable" % func,
                     "Function names must match exactly what is requested.",
-                    file=self.rel(name))
+                    file=self.rel(name), kind="root")
             return None
         out = p.get("results")
         return out if isinstance(out, list) else None
@@ -316,7 +317,7 @@ class Ctx:
             return
         if "import_error" in p:
             self.ko("Impossible d'importer " + self.rel(name),
-                    got=p["import_error"], file=self.rel(name))
+                    got=p["import_error"], file=self.rel(name), kind="root")
             return
         for c, r in zip(cases, p.get("results", [])):
             label = c.get("label") or "%s(%s)" % (
@@ -330,7 +331,7 @@ class Ctx:
                 continue
             if r["timeout"]:
                 self.ko(label + " : délai dépassé", rule, file=f,
-                        got=r["out"][-800:])
+                        got=r["out"][-800:], kind="crash")
                 continue
             if "raises" in c:
                 want = c["raises"]
@@ -340,27 +341,30 @@ class Ctx:
                                rule, file=f,
                                expected="exception %s" % (
                                    want if want != "*" else ""),
-                               got="renvoie %s" % r["value_repr"])
+                               got="renvoie %s" % r["value_repr"],
+                               kind="output")
                     continue
                 if want != "*" and want not in r["exc_mro"]:
                     self.issue(strict, label + " : mauvaise exception", rule,
-                               file=f, expected=want, got=r["exc"])
+                               file=f, expected=want, got=r["exc"],
+                               kind="output")
                     continue
                 if "message" in c and r["exc_msg"] != c["message"]:
                     self.issue(strict, label + " : message d'erreur "
                                "différent", rule, file=f,
-                               expected=c["message"], got=r["exc_msg"])
+                               expected=c["message"], got=r["exc_msg"],
+                               kind="output")
                     continue
             elif r["exc"]:
                 self.issue(strict, label + " : exception inattendue", rule,
-                           file=f, got=r["exc"])
+                           file=f, got=r["exc"], kind="output")
                 continue
             if "returns" in c and not (
                     r["value"] == c["returns"]
                     and type(r["value"]) is type(c["returns"])):
                 self.issue(strict, label + " : valeur renvoyée incorrecte",
                            rule, file=f, expected=repr(c["returns"]),
-                           got=r["value_repr"])
+                           got=r["value_repr"], kind="output")
                 continue
             if "out" in c:
                 if not self.compare(label, c["out"], r["out"].splitlines(),
@@ -381,11 +385,12 @@ class Ctx:
             self.warn(label + " : espaces en fin de ligne", rule,
                       expected=d.expected, got=d.got, file=file,
                       detail="Seuls des espaces invisibles en fin de ligne"
-                             " diffèrent (· = espace).")
+                             " diffèrent (· = espace).", kind="output")
             return True
         self.issue(strict, label + " : sortie différente du sujet", rule,
                    expected=d.expected, got=d.got, file=file,
-                   detail=(detail + "\n" if detail else "") + d.summary)
+                   detail=(detail + "\n" if detail else "") + d.summary,
+                   kind="output")
         return False
 
     def check_prompts(self, label: str, expected: list[str],
@@ -397,7 +402,8 @@ class Ctx:
                        rule, expected="\n".join(repr(p) for p in expected),
                        got="(aucun appel à input())", file=file,
                        detail="La sortie est peut-être écrite en dur : le "
-                              "sujet demande de lire une saisie.")
+                              "sujet demande de lire une saisie.",
+                       kind="root")
             return False
         if got[:len(expected)] != expected or len(got) != len(expected):
             self.issue(strict, label + " : texte du prompt incorrect", rule,
@@ -416,11 +422,11 @@ class Ctx:
             self.ko(label + " : " + ("délai dépassé" if res.timeout
                                      else "processus arrêté"), rule,
                     got=res.stdout[-1500:], detail=res.crash_text(),
-                    file=file)
+                    file=file, kind="crash")
             return False
         if res.exception:
             self.issue(strict, label + " : le programme plante", rule,
-                       got=res.crash_text(), file=file)
+                       got=res.crash_text(), file=file, kind="crash")
             return False
         return True
 
@@ -664,6 +670,64 @@ def _extra_files(ctx: Ctx) -> None:
 
 def run_exercise(module: Module, ex: Exercise, sandbox: Sandbox,
                  root: Path, verbose: bool = False) -> ExerciseResult:
+    result = _run_exercise(module, ex, sandbox, root, verbose)
+    consolidate(result, ex)
+    return result
+
+
+# Priorité des causes : dans un fichier, le problème de plus haute priorité
+# regroupe les conséquences (plantages, comparaisons de sortie).
+_CAUSE_RANK = {"root": 0, "crash": 1, None: 2, "output": 3}
+_ABSORBED = {"crash", "output"}
+
+
+def consolidate(result: ExerciseResult, ex: Exercise) -> None:
+    """Évite les KO en cascade, fichier par fichier :
+    - une cause racine (input() jamais appelé, import impossible...)
+      regroupe tous les autres constats du fichier : un seul KO ;
+    - sinon un plantage, ou à défaut le premier problème de structure,
+      regroupe les plantages et comparaisons de sortie qui en découlent ;
+    - sans cause, les sorties différentes forment un seul bloc.
+    Les vérifications génériques (flake8, mypy...) restent à part."""
+    single = ex.files[0] if len(ex.files) == 1 else None
+
+    def key(i: Issue) -> str:
+        f = i.file or (os.path.join(ex.directory, single) if single
+                       else "")
+        return os.path.normpath(f) if f else ""
+
+    groups: dict[str, list[Issue]] = {}
+    for i in result.issues:
+        if i.kind != "static":
+            groups.setdefault(key(i), []).append(i)
+    absorbed: set[int] = set()
+    for issues in groups.values():
+        for level in (KO, WARN):
+            cands = [i for i in issues if i.level == level
+                     and id(i) not in absorbed]
+            if not cands:
+                continue
+            primary = min(cands, key=lambda i: _CAUSE_RANK[i.kind])
+            # Une cause racine (input() jamais appelé, import impossible...)
+            # explique aussi les autres constats du fichier.
+            absorbable = _ABSORBED | ({None} if primary.kind == "root"
+                                      else set())
+            for i in issues:
+                if i is primary or id(i) in absorbed \
+                        or i.kind not in absorbable:
+                    continue
+                # Un avertissement ne regroupe pas un KO, et un plantage
+                # n'est pas regroupé sous une simple sortie différente.
+                if (level == WARN and i.level == KO) or \
+                        _CAUSE_RANK[i.kind] < _CAUSE_RANK[primary.kind]:
+                    continue
+                primary.related.append(i)
+                absorbed.add(id(i))
+    result.issues = [i for i in result.issues if id(i) not in absorbed]
+
+
+def _run_exercise(module: Module, ex: Exercise, sandbox: Sandbox,
+                  root: Path, verbose: bool = False) -> ExerciseResult:
     ctx = Ctx(module, ex, sandbox, root, verbose)
     missing = [f for f in ex.files if not ctx.exists(f)]
     for f in missing:
@@ -673,6 +737,7 @@ def run_exercise(module: Module, ex: Exercise, sandbox: Sandbox,
     present = [f for f in ex.files if f not in missing]
     if not present:
         return ctx.result
+    first_static = len(ctx.result.issues)
     _extra_files(ctx)
     pyfiles = [f for f in present if f.endswith(".py")]
     base_dir = ctx.path("")
@@ -686,6 +751,7 @@ def run_exercise(module: Module, ex: Exercise, sandbox: Sandbox,
         s = ctx.src(f)
         if s.tree is None:
             ctx.ko("Le fichier ne se compile pas", file=ctx.rel(f),
+                   kind="root",
                    got=s.error, rule="Your programs must always run "
                                      "without errors")
             broken = True
@@ -698,6 +764,10 @@ def run_exercise(module: Module, ex: Exercise, sandbox: Sandbox,
         _builtins(ctx, pyfiles)
         _imports(ctx, pyfiles)
         _main_guard(ctx, pyfiles)
+    # Vérifications génériques (style, typage, fonctions autorisées...) :
+    # jamais regroupées avec les constats de comportement.
+    for i in ctx.result.issues[first_static:]:
+        i.kind = "static"
     if missing:
         return ctx.result
     try:
@@ -758,18 +828,19 @@ def check_script(ctx: Ctx, file: str, expected: list | None,
         ctx.ko(label + " : " + ("délai dépassé" if res.timeout else
                                 "processus arrêté"), crash_rule,
                got=res.stdout[-1500:] or None, detail=res.crash_text(),
-               file=ctx.rel(file))
+               file=ctx.rel(file), kind="crash")
         return res
     if res.exception and res.exception.get("type") == "InputExhausted":
         ctx.ko(label + " : input() appelé plus de fois que prévu",
-               crash_rule, got=res.stdout[-1500:], file=ctx.rel(file))
+               crash_rule, got=res.stdout[-1500:], file=ctx.rel(file),
+               kind="crash")
         return res
     if res.exception or (must_exit_zero and res.returncode not in (0,
                                                                    None)):
         ctx.ko(label + " : le programme plante", crash_rule,
                got=(res.stdout[-800:] + "\n" + (
                    res.crash_text() or res.stderr[-800:])).strip(),
-               file=ctx.rel(file))
+               file=ctx.rel(file), kind="crash")
         return res
     if expected is not None:
         ctx.compare(label, expected, res.lines(), rule, strict=strict,

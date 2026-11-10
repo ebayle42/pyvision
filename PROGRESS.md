@@ -18,6 +18,18 @@ Fichier de suivi pour reprendre le travail dans une nouvelle session.
 - `tests/run_tests.py` : jeux de test (`good/` + cas fautifs avec
   `expect.json`). Lancer : `.venv/bin/python tests/run_tests.py [module_XX]`.
 
+## Regroupement des KO (core/base.py `consolidate`)
+
+Chaque `Issue` a un `kind` : `root` (input() jamais appelé, import
+impossible, fichier qui ne compile pas), `crash` (plantage, délai),
+`output` (comparaison de sortie/valeur, posé par `ctx.compare` et
+`expect_calls`), `static` (flake8, mypy, hints, fonctions/imports
+autorisés, __main__ : jamais regroupés) ou `None` (constat propre au
+module). Par fichier : un `root` absorbe tout le reste (hors static) ;
+sinon un `crash` ou le premier constat `None` absorbe les crash/output ;
+sinon les `output` sont fusionnés. Les absorbés sont dans `issue.related`
+(rapport + JSON) ; `expect.json` peut fixer `ko_count`.
+
 ## État des modules
 
 | Module | État | Jeux de test |

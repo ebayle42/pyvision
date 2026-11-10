@@ -32,6 +32,11 @@ Chaque exercice est noté **OK** (vert), **KO** (rouge) ou
 **AVERTISSEMENT** (jaune), puis un rapport détaille chaque problème :
 sortie attendue / obtenue et phrase du sujet concernée.
 
+Pas de KO en cascade : quand une cause principale explique les erreurs
+suivantes (ex : `input()` jamais appelé, programme qui plante), un seul KO
+est affiché pour le fichier ; les comparaisons de sortie qui en découlent
+sont listées dans ce même bloc (détail attendu / obtenu avec `-v`).
+
 ## Règles suivies
 
 - Un **KO** s'appuie toujours sur une phrase du PDF (citée dans le rapport).

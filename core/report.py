@@ -1,6 +1,7 @@
 """Résultats et affichage (rich)."""
 from __future__ import annotations
 
+import textwrap
 from dataclasses import dataclass, field
 
 from rich.console import Console, Group
@@ -27,6 +28,12 @@ class Issue:
     detail: str | None = None
     file: str | None = None
     manual: str | None = None   # comment vérifier à la main
+    # root : cause principale (ex : input() jamais appelé) ; crash :
+    # plantage / délai ; output : comparaison de sortie ou de valeur ;
+    # static : style, typage... ; None : vérification propre au module.
+    kind: str | None = None
+    # Problèmes qui découlent de celui-ci (affichés dans le même bloc).
+    related: list["Issue"] = field(default_factory=list)
 
 
 @dataclass
@@ -84,26 +91,73 @@ def print_exercise_line(res: ExerciseResult, verbose: bool) -> None:
             console.print(Text("        %s %s" % (
                 "✗" if i.level == KO else "!", i.title),
                 style=_STYLE[i.level]))
+            for r in i.related:
+                console.print(Text("            ↳ " + r.title, style="dim"))
 
 
-def _issue_panel(ex: ExerciseResult, issue: Issue, verbose: bool) -> Panel:
-    parts: list = []
-    if issue.file:
-        parts.append(Text("Fichier : " + issue.file, style="dim"))
+def _summary_line(issue: Issue) -> str:
+    """Dernière ligne du détail (ex : « Ligne 2 différente : ... »)."""
     if issue.detail:
+        return issue.detail.strip().splitlines()[-1]
+    return ""
+
+
+def _related_parts(issue: Issue, verbose: bool) -> list:
+    """Conséquences regroupées sous la cause principale : une ligne par
+    cas ; le détail complet (attendu / obtenu) seulement avec -v."""
+    if not issue.related:
+        return []
+    n = len(issue.related)
+    if issue.kind == "output":
+        head = "%d autre(s) cas avec le même type de différence :" % n
+    elif issue.kind in ("root", "crash"):
+        head = "Découle de ce problème (%d vérification(s) en échec) :" % n
+    else:
+        head = ("Autres vérifications en échec dans ce fichier, "
+                "probablement liées (%d) :" % n)
+    parts: list = [Text(head, style="bold")]
+    for r in issue.related:
+        line = Text("  • " + r.title, style=_STYLE[r.level])
+        s = _summary_line(r)
+        if s and not verbose:
+            line.append("\n      " + s, style="dim")
+        parts.append(line)
+        if verbose:
+            parts.extend(_body_parts(r, verbose, indent=True))
+    if not verbose:
+        parts.append(Text("  (détail de chaque comparaison avec -v)",
+                          style="dim"))
+    return parts
+
+
+def _body_parts(issue: Issue, verbose: bool, indent: bool = False) -> list:
+    parts: list = []
+    if issue.detail and not indent:
         parts.append(Text(issue.detail))
+    elif issue.detail:
+        parts.append(Text(textwrap.indent(issue.detail, "      "),
+                          style="dim"))
     limit = 200 if verbose else 40
     if issue.expected is None and issue.got is not None:
         parts.append(Text("Obtenu :", style="bold"))
         parts.append(Text(_ellipsis(issue.got, limit), style="red"))
     elif issue.expected is not None:
         table = Table(show_header=True, header_style="bold", expand=True,
-                      box=None, padding=(0, 1))
+                      box=None, padding=(0, 1, 0, 6 if indent else 1))
         table.add_column("Attendu", style="green", ratio=1)
         table.add_column("Obtenu", style="red", ratio=1)
         table.add_row(Text(_ellipsis(issue.expected or "", limit)),
                       Text(_ellipsis(issue.got or "", limit)))
         parts.append(table)
+    return parts
+
+
+def _issue_panel(ex: ExerciseResult, issue: Issue, verbose: bool) -> Panel:
+    parts: list = []
+    if issue.file:
+        parts.append(Text("Fichier : " + issue.file, style="dim"))
+    parts.extend(_body_parts(issue, verbose))
+    parts.extend(_related_parts(issue, verbose))
     if issue.rule:
         parts.append(Text.assemble(("Règle du sujet : ", "bold"),
                                    ("« %s »" % issue.rule, "italic cyan")))
@@ -111,8 +165,10 @@ def _issue_panel(ex: ExerciseResult, issue: Issue, verbose: bool) -> Panel:
         parts.append(Text.assemble(("À vérifier à la main : ", "bold"),
                                    issue.manual))
     return Panel(Group(*parts) if parts else Text(""),
-                 title=Text("%s · %s · %s"
-                            % (ex.ex_id, issue.level, issue.title),
+                 title=Text("%s · %s · %s%s"
+                            % (ex.ex_id, issue.level, issue.title,
+                               " (+%d lié(s))" % len(issue.related)
+                               if issue.related else ""),
                             style=_STYLE[issue.level]),
                  title_align="left", border_style=_STYLE[issue.level])
 
