@@ -1,0 +1,1 @@
+{"expect": {"ex1": "KO"}, "titles": {"ex1": ["commité"]}, "git_commit": ["ex1/.env", "ex1/oracle.py"]}

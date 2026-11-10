@@ -1,0 +1,20 @@
+import random
+
+if __name__ == "__main__":
+    print("=== Game Data Alchemist ===")
+    players = ["Alice", "bob", "Charlie", "dylan", "Emma", "Gregory", "john",
+               "kevin", "Liam"]
+    print(f"Initial list of players: {players}")
+    capitalized = [name.capitalize() for name in players]
+    print(f"New list with all names capitalized: {capitalized}")
+    only = []
+    for name in players:
+        if name == name.capitalize():
+            only.append(name)
+    print(f"New list of capitalized names only: {only}")
+    scores = {name: random.randint(0, 1000) for name in capitalized}
+    print(f"Score dict: {scores}")
+    average = sum(scores.values()) / len(scores)
+    print(f"Score average is {round(average, 2)}")
+    high = {name: score for name, score in scores.items() if score >= 0}
+    print(f"High scores: {high}")

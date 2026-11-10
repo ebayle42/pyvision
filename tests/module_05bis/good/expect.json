@@ -1,0 +1,1 @@
+{"expect": {"ex0": "AVERTISSEMENT"}, "comment": "ex0 : l installation reelle pip/Poetry demande le reseau -> avertissement attendu"}
