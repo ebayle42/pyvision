@@ -1,7 +1,17 @@
 # pyvision
 
-Testeur pour les modules Python de 42 (parcours 00, 01, 02, 03, 04, 05bis,
-06bis, 09, 10) qui vérifie **vraiment** le respect du sujet : structure,
+Testeur pour les modules Python de 42 
+- `Module 00`
+- `Module 01`
+- `Module 02`
+- `Module 03`
+- `Module 04`
+- `Module 05bis`
+- `Module 06bis`
+- `Module 09`
+- `Module 10`
+
+Qui vérifie **vraiment** le respect du sujet : structure,
 style, analyse du code (`ast`), prompts exacts, sorties ligne à ligne,
 comportement des fonctions et classes appelées directement, robustesse.
 
@@ -22,9 +32,17 @@ Placez-vous à la racine d'un module (le dossier qui contient `ex0/`,
 
 ```sh
 pyvision            # détecte le module et teste tout
+```
+```sh
 pyvision ex2        # un seul exercice (ou: pyvision 2)
+```
+```sh
 pyvision -m 05bis   # forcer le module
+```
+```sh
 pyvision -v         # détail de chaque vérification réussie
+```
+```sh
 pyvision -u         # mise à jour (git pull + réinstallation)
 ```
 
