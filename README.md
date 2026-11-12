@@ -89,4 +89,9 @@ sont listées dans ce même bloc (détail attendu / obtenu avec `-v`).
 .venv/bin/python tests/run_tests.py module_01  # un module
 ```
 
-Voir `PROGRESS.md` pour le détail des points vérifiés.
+## Votre attention est précieuse
+
+Ce testeur est encore en développement si un test est anormal ou ne marche pas veuillez le signaler sur Discord ou via la catégorie `Issues` sur le repository GitHub
+
+- [Issues (GitHub)](https://github.com/ebayle42/python/issues)
+- [Discord (ebayle | Awekano)](https://discord.com/users/479765523064815616)
